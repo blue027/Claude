@@ -1,0 +1,43 @@
+name: Build Windows app
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Smoke test (real clicks on the runner's desktop)
+        run: python tests/smoke_test.py
+
+      - name: Build AutoClicker.exe
+        run: >
+          pyinstaller --onefile --windowed --name AutoClicker
+          --hidden-import pynput.keyboard._win32
+          --hidden-import pynput.mouse._win32
+          autoclicker.py
+
+      - name: Check the .exe opens its window
+        shell: pwsh
+        run: |
+          Start-Process dist\AutoClicker.exe
+          Start-Sleep -Seconds 15
+          $titles = (Get-Process AutoClicker).MainWindowTitle
+          Write-Host "Window titles: $titles"
+          Stop-Process -Name AutoClicker -Force
+          if ($titles -notcontains "Auto Clicker") { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoClicker-windows
+          path: dist/AutoClicker.exe
